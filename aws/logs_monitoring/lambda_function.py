@@ -847,10 +847,10 @@ def parse_event_type(event):
 
 
 def get_s3_tags(tag_response):
-    tags = ""
+    tags = ''
     try:
-        tagSet = tag_response["TagSet"]
-        tags = ",".join([f'{t["Key"]}:{t["Value"]}' for t in tagSet])
+        tagSet = tag_response['TagSet']
+        tags = ','.join([ f'{t["Key"]}:{t["Value"]}' for t in tagSet ])
     except:
         pass
     return tags
@@ -871,7 +871,7 @@ def s3_handler(event, context, metadata):
         tag_response = []
     bucket_tags = get_s3_tags(tag_response)
     if len(bucket_tags) > 0:
-        metadata[DD_CUSTOM_TAGS] += "," + bucket_tags
+        metadata[DD_CUSTOM_TAGS] += ',' + bucket_tags
 
     source = parse_event_source(event, key)
     metadata[DD_SOURCE] = source
