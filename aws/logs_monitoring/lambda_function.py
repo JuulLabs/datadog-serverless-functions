@@ -887,7 +887,7 @@ def s3_handler(event, context, metadata):
     key = urllib.parse.unquote_plus(event["Records"][0]["s3"]["object"]["key"])
 
     # Find s3 bucket tags and append them to the custom tags if we can find any
-    s3_bucket_tags = get_s3_tags(bucket)
+    s3_bucket_tags = get_s3_tags(s3, bucket)
     bucket_tags = format_s3_tags(s3_bucket_tags)
     if len(bucket_tags) > 0:
         metadata[DD_CUSTOM_TAGS] += "," + bucket_tags
