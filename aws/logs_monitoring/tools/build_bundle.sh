@@ -15,11 +15,15 @@ cd $DIR
 if [ -z "$1" ]; then
     echo "Must specify a desired version number"
     exit 1
-elif [[ ! $1 =~ [0-9]+\.[0-9]+\.[0-9]+ ]]; then
-    echo "Must use a semantic version, e.g., 3.1.4"
-    exit 1
 else
-    VERSION=$1
+    if [[ $1 =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+        VERSION=$1
+    elif [[ $1 =~ ref/tags/[0-9]+\.[0-9]+\.[0-9]+ ]]; then
+        VERSION="$(echo $1 | cut -d/ -f3)"
+    else
+        echo "Must use a semantic version, e.g., 3.1.4"
+        exit 1
+    fi
 fi
 
 PYTHON_VERSION="3.7"
