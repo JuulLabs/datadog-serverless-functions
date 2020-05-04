@@ -851,6 +851,16 @@ def parse_event_type(event):
     raise Exception("Event type not supported (see #Event supported section)")
 
 
+def get_s3_tags(tag_response):
+    tags = ""
+    try:
+        tagSet = tag_response["TagSet"]
+        tags = ",".join([f'{t["Key"]}:{t["Value"]}' for t in tagSet])
+    except:
+        pass
+    return tags
+
+
 # Handle S3 events
 def s3_handler(event, context, metadata):
     s3 = boto3.client("s3")
@@ -858,6 +868,15 @@ def s3_handler(event, context, metadata):
     # Get the object from the event and show its content type
     bucket = event["Records"][0]["s3"]["bucket"]["name"]
     key = urllib.parse.unquote_plus(event["Records"][0]["s3"]["object"]["key"])
+
+    # Find s3 bucket tags and append them to the custom tags if we can find any
+    try:
+        tag_response = s3.get_bucket_tagging(Bucket=bucket)
+    except Exception:
+        tag_response = []
+    bucket_tags = get_s3_tags(tag_response)
+    if len(bucket_tags) > 0:
+        metadata[DD_CUSTOM_TAGS] += "," + bucket_tags
 
     source = parse_event_source(event, key)
     metadata[DD_SOURCE] = source
