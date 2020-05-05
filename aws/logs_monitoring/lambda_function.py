@@ -851,30 +851,50 @@ def parse_event_type(event):
     raise Exception("Event type not supported (see #Event supported section)")
 
 
-def get_s3_tags(tag_response):
-    tags = ""
+def get_s3_tags(s3_client, bucket_name):
+    """
+    Get the tags from a s3 bucket and return it as a dictionary
+    """
     try:
-        tagSet = tag_response["TagSet"]
-        tags = ",".join([f'{t["Key"]}:{t["Value"]}' for t in tagSet])
+        tag_response = s3_client.get_bucket_tagging(Bucket=bucket_name)
     except:
-        pass
+        return {}
+    s3_tag_set = tag_response.get("TagSet", [])
+    tags = {}
+    for tag in s3_tag_set:
+        if "Key" in tag and "Value" in tag:
+            tags[tag["Key"]] = tag["Value"]
     return tags
+
+
+def format_s3_tags(s3_tags):
+    tags = []
+    for key in s3_tags:
+        value = s3_tags[key]
+        tags.append(f"{key}:{value}")
+    return ",".join([t for t in tags])
+
+
+def set_standard_attributes_from_s3_tags(s3_tags, metadata):
+    if s3_tags.get("service"):
+        metadata[DD_SERVICE] = s3_tags.get("service")
+    if s3_tags.get("env"):
+        metadata["env"] = s3_tags.get("env")
+    if s3_tags.get("stack_name"):
+        metadata["stack_name"] = s3_tags.get("stack_name")
+    return metadata
 
 
 # Handle S3 events
 def s3_handler(event, context, metadata):
     s3 = boto3.client("s3")
-
     # Get the object from the event and show its content type
     bucket = event["Records"][0]["s3"]["bucket"]["name"]
     key = urllib.parse.unquote_plus(event["Records"][0]["s3"]["object"]["key"])
 
     # Find s3 bucket tags and append them to the custom tags if we can find any
-    try:
-        tag_response = s3.get_bucket_tagging(Bucket=bucket)
-    except Exception:
-        tag_response = []
-    bucket_tags = get_s3_tags(tag_response)
+    s3_bucket_tags = get_s3_tags(s3, bucket)
+    bucket_tags = format_s3_tags(s3_bucket_tags)
     if len(bucket_tags) > 0:
         metadata[DD_CUSTOM_TAGS] += "," + bucket_tags
 
@@ -882,6 +902,8 @@ def s3_handler(event, context, metadata):
     metadata[DD_SOURCE] = source
     ##default service to source value
     metadata[DD_SERVICE] = source
+    # If there are s3 tags, overwrite the values with the s3 tags
+    metadata = set_standard_attributes_from_s3_tags(s3_bucket_tags, metadata)
     ##Get the ARN of the service and set it as the hostname
     hostname = parse_service_arn(source, key, bucket, context)
     if hostname:
