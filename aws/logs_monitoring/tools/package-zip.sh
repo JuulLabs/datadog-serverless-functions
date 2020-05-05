@@ -13,7 +13,7 @@ if [ -z "$1" ]; then
 else
     if [[ $1 =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
         VERSION=$1
-    elif [[ $1 =~ ref/tags/[0-9]+\.[0-9]+\.[0-9]+ ]]; then
+    elif [[ $1 =~ refs/tags/[0-9]+\.[0-9]+\.[0-9]+ ]]; then
         VERSION="$(echo $1 | cut -d/ -f3)"
     else
         echo "Must use a semantic version, e.g., 3.1.4"
