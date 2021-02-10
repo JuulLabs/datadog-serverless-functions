@@ -851,6 +851,8 @@ def set_standard_attributes_from_s3_tags(s3_tags, metadata):
         metadata["env"] = s3_tags.get("env")
     if s3_tags.get("stack_name"):
         metadata["stack_name"] = s3_tags.get("stack_name")
+    if s3_tags.get("costcenter"):
+        metadata["costcenter"] = s3_tags.get("costcenter")
     return metadata
 
 
