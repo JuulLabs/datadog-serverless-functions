@@ -16,6 +16,6 @@ jobs:
         uses: softprops/action-gh-release@v1
         if: startsWith(github.ref, 'refs/tags/')
         with:
-          files: "**/aws-dd-forwarder-*.zip"
+          files: "aws/logs_monitoring/.forwarder/*.zip"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
