@@ -11,7 +11,7 @@ if [ -z "$1" ]; then
     echo "Must specify a desired version number"
     exit 1
 else
-    if [[ $1 =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+    if [[ $1 =~ ^[0-9]+\.[0-9]+\.[0-9]+ ]]; then
         VERSION=$1
     elif [[ $1 =~ refs/tags/[0-9]+\.[0-9]+\.[0-9]+ ]]; then
         VERSION="$(echo $1 | cut -d/ -f3)"
