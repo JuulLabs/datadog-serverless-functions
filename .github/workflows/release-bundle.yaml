@@ -11,7 +11,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v2
       - name: Build
-        run: aws/logs_monitoring/tools/package-zip.sh ${{ github.ref }}
+        run: aws/logs_monitoring/tools/build_bundle.sh ${{ github.ref }}
       - name: Upload Asset
         uses: softprops/action-gh-release@v1
         if: startsWith(github.ref, 'refs/tags/')
