@@ -21,6 +21,7 @@ import logging
 from io import BytesIO, BufferedReader
 import time
 from requests_futures.sessions import FuturesSession
+from functools import lru_cache
 
 from datadog_lambda.wrapper import datadog_lambda_wrapper
 from datadog_lambda.metric import lambda_stats
@@ -815,10 +816,18 @@ def get_s3_tags(s3_client, bucket_name):
     """
     Get the tags from a s3 bucket and return it as a dictionary
     """
-    try:
-        tag_response = s3_client.get_bucket_tagging(Bucket=bucket_name)
-    except:
+
+    @lru_cache(maxsize=1024)
+    def get_tag_response(bucket):
+        try:
+            tag_response = s3_client.get_bucket_tagging(Bucket=bucket_name)
+        except:
+            return {}
+
+    tag_response = get_tag_response()
+    if tag_response == {}:
         return {}
+
     s3_tag_set = tag_response.get("TagSet", [])
     tags = {}
     for tag in s3_tag_set:
@@ -826,7 +835,7 @@ def get_s3_tags(s3_client, bucket_name):
             tags[tag["Key"]] = tag["Value"]
     return tags
 
-
+@lru_cache(maxsize=128)
 def format_s3_tags(s3_tags):
     tags = []
     for key in s3_tags:
