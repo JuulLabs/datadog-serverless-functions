@@ -10,20 +10,31 @@ package main
 import (
 	"C"
 	"context"
+	"encoding/json"
+	"errors"
 	"fmt"
 
 	"github.com/DataDog/datadog-serverless-functions/aws/logs_monitoring/trace_forwarder/internal/apm"
+
+	"github.com/DataDog/datadog-agent/pkg/trace/obfuscate"
+	"github.com/DataDog/datadog-agent/pkg/trace/pb"
 )
-import "github.com/DataDog/datadog-agent/pkg/trace/obfuscate"
 
 var (
 	obfuscator     *obfuscate.Obfuscator
 	edgeConnection apm.TraceEdgeConnection
 )
 
+type (
+	RawTracePayload struct {
+		Message string `json:"message"`
+		Tags    string `json:"tags"`
+	}
+)
+
 // Configure will set up the bindings
 //export Configure
-func Configure(rootURL, apiKey string) {
+func Configure(rootURL, apiKey string, InsecureSkipVerify bool) {
 	// Need to make a copy of these values, otherwise the underlying memory
 	// might be cleaned up by the runtime.
 	localRootURL := fmt.Sprintf("%s", rootURL)
@@ -42,38 +53,105 @@ func Configure(rootURL, apiKey string) {
 		Redis:             true,
 		Memcached:         true,
 	})
-	edgeConnection = apm.CreateTraceEdgeConnection(localRootURL, localAPIKey)
+	edgeConnection = apm.CreateTraceEdgeConnection(localRootURL, localAPIKey, InsecureSkipVerify)
 }
 
-// ForwardTrace will perform filtering and log forwarding to the trace intake
 // returns 0 on success, 1 on error
-//export ForwardTrace
-func ForwardTrace(content string, tags string) int {
-	tracePayloads, err := apm.ProcessTrace(content, obfuscator, tags)
+//export ForwardTraces
+func ForwardTraces(serializedTraces string) int {
+	rawTracePayloads, err := unmarshalSerializedTraces(serializedTraces)
 	if err != nil {
-		fmt.Printf("Couldn't forward trace: %v", err)
+		fmt.Printf("Couldn't forward traces: %v", err)
 		return 1
 	}
-	hadErr := false
 
+	processedTracePayloads, err := processRawTracePayloads(rawTracePayloads)
+
+	if len(processedTracePayloads) == 0 {
+		fmt.Printf("No traces to forward")
+		return 0
+	}
+
+	if err != nil {
+		fmt.Printf("Couldn't forward traces: %v", err)
+		return 1
+	}
+
+	aggregatedTracePayloads := aggregateTracePayloadsByEnv(processedTracePayloads)
+
+	err = sendTracesToIntake(aggregatedTracePayloads)
+	if err != nil {
+		fmt.Printf("Couldn't forward traces: %v", err)
+		return 1
+	}
+
+	return 0
+}
+
+func unmarshalSerializedTraces(serializedTraces string) ([]RawTracePayload, error) {
+	var rawTracePayloads []RawTracePayload
+	err := json.Unmarshal([]byte(serializedTraces), &rawTracePayloads)
+
+	if err != nil {
+		return rawTracePayloads, fmt.Errorf("Couldn't unmarshal serialized traces, %v", err)
+	}
+
+	return rawTracePayloads, nil
+}
+
+func processRawTracePayloads(rawTracePayloads []RawTracePayload) ([]*pb.TracePayload, error) {
+	var processedTracePayloads []*pb.TracePayload
+	for _, rawTracePayload := range rawTracePayloads {
+		traceList, err := apm.ProcessTrace(rawTracePayload.Message, obfuscator, rawTracePayload.Tags)
+		if err != nil {
+			return processedTracePayloads, err
+		}
+		processedTracePayloads = append(processedTracePayloads, traceList...)
+	}
+	return processedTracePayloads, nil
+}
+
+func aggregateTracePayloadsByEnv(tracePayloads []*pb.TracePayload) []*pb.TracePayload {
+	lookup := make(map[string]*pb.TracePayload)
 	for _, tracePayload := range tracePayloads {
+		key := fmt.Sprintf("%s|%s", tracePayload.HostName, tracePayload.Env)
+		var existingPayload *pb.TracePayload
+		if val, ok := lookup[key]; ok {
+			existingPayload = val
+		} else {
+			existingPayload = &pb.TracePayload{
+				HostName:     tracePayload.HostName,
+				Env:          tracePayload.Env,
+				Traces:       make([]*pb.APITrace, 0),
+				Transactions: make([]*pb.Span, 0),
+			}
+			lookup[key] = existingPayload
+		}
+		existingPayload.Traces = append(existingPayload.Traces, tracePayload.Traces...)
+		existingPayload.Transactions = append(existingPayload.Transactions, tracePayload.Transactions...)
+	}
 
-		err = edgeConnection.SendTraces(context.Background(), tracePayload, 3)
+	newPayloads := make([]*pb.TracePayload, 0)
+
+	for _, tracePayload := range lookup {
+		newPayloads = append(newPayloads, tracePayload)
+	}
+	return newPayloads
+}
+
+func sendTracesToIntake(tracePayloads []*pb.TracePayload) error {
+	hadErr := false
+	for _, tracePayload := range tracePayloads {
+		err := edgeConnection.SendTraces(context.Background(), tracePayload, 3)
 		if err != nil {
 			fmt.Printf("Failed to send traces with error %v\n", err)
 			hadErr = true
 		}
-		stats := apm.ComputeAPMStats(tracePayload)
-		err = edgeConnection.SendStats(context.Background(), stats, 3)
-		if err != nil {
-			fmt.Printf("Failed to send trace stats with error %v\n", err)
-			hadErr = true
-		}
 	}
 	if hadErr {
-		return 1
+		return errors.New("Failed to send traces to intake")
 	}
-	return 0
+	return nil
 }
 
 func main() {}
