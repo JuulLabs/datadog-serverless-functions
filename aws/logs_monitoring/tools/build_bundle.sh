@@ -11,6 +11,10 @@ set -e
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 cd $DIR
 
+PYTHON_VERSION="3.7"
+FORWARDER_PREFIX="aws-dd-forwarder"
+FORWARDER_DIR="../.forwarder"
+
 # Read the desired version
 if [ -z "$1" ]; then
     echo "Must specify a desired version number"
@@ -18,7 +22,7 @@ if [ -z "$1" ]; then
 else
     if [[ $1 =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
         VERSION=$1
-    elif [[ $1 =~ ref/tags/[0-9]+\.[0-9]+\.[0-9]+ ]]; then
+    elif [[ $1 =~ refs/tags/${FORWARDER_PREFIX}-([0-9]+\.[0-9]+\.[0-9]+) ]]; then
         VERSION="$(echo $1 | cut -d/ -f3)"
     else
         echo "Must use a semantic version, e.g., 3.1.4"
@@ -26,9 +30,7 @@ else
     fi
 fi
 
-PYTHON_VERSION="3.7"
-FORWARDER_PREFIX="aws-dd-forwarder"
-FORWARDER_DIR="../.forwarder"
+
 
 function make_path_absolute {
     echo "$(cd "$(dirname "$1")"; pwd)/$(basename "$1")"
@@ -61,7 +63,7 @@ function docker_build_zip {
 rm -rf $FORWARDER_DIR
 mkdir $FORWARDER_DIR
 
-docker_build_zip ${PYTHON_VERSION} ${FORWARDER_DIR}/${FORWARDER_PREFIX}-${VERSION}.zip
+docker_build_zip ${PYTHON_VERSION} ${FORWARDER_DIR}/${VERSION}.zip
 
 echo "Successfully created Forwarder bundle!"
 ls $FORWARDER_DIR | xargs -I _ echo "${FORWARDER_DIR}/_"
