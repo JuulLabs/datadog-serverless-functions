@@ -820,11 +820,11 @@ def get_s3_tags(s3_client, bucket_name):
     @lru_cache(maxsize=1024)
     def get_tag_response(bucket):
         try:
-            tag_response = s3_client.get_bucket_tagging(Bucket=bucket_name)
+            return s3_client.get_bucket_tagging(Bucket=bucket)
         except:
             return {}
 
-    tag_response = get_tag_response()
+    tag_response = get_tag_response(bucket_name)
     if tag_response == {}:
         return {}
 
@@ -835,7 +835,7 @@ def get_s3_tags(s3_client, bucket_name):
             tags[tag["Key"]] = tag["Value"]
     return tags
 
-@lru_cache(maxsize=128)
+
 def format_s3_tags(s3_tags):
     tags = []
     for key in s3_tags:
