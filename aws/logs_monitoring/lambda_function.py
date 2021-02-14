@@ -1047,8 +1047,57 @@ def cwevent_handler(event, metadata):
     ##default service to source value
     metadata[DD_SERVICE] = metadata[DD_SOURCE]
 
+
+    # Generate a subscription for new Log Groups
+    # DD_LOG_SUBSCRIPTION_FILTER__aws_lambda_datadog_rds_metrics_automatic_us_east_1
+    #
+    # detail.requestParameters.logGroupName
+    # detail.eventName == CreateLogGroup
+    try:
+        if service == "logs:
+            log_group = data.get('detail', {}).get('requestParameters', {}).get('logGroupName', '')
+            event_name = data.get('detail', {}).get('eventName', None)
+            if event_name in ["CreateLogGroup", "CreateLogStream"] and log_group.startswith('/aws/lambda'):
+                # Create a subscription filter
+                cwlogs = boto3.client("logs")
+                try:
+                    targetArn = metadata['aws']['invoked_function_arn']
+                    response = client.put_subscription_filter(
+                        logGroupName=log_group,
+                        filterName='DD_LOG_SUBSCRIPTION_FILTER_{}'.format(_subscription_filter_name(log_group)),
+                        filterPattern='',
+                        destinationArn=targetArn,
+                        distribution='Random'
+                    )
+                    metadata['automation'] = {
+                        'success': True,
+                        'action': 'logs.PutSubscriptionFilter'
+                    }
+                    logger.info(f"Created Cloudwatch Log Group subscription for {log_group} to {targetArn}")
+                except Exception as e:
+                    logger.exception(
+                        f"Failed to create subscription for log group {log_group} due to {e}"
+                    )
+                    metadata['error'] = {
+                        'errorMessage': f"Failed to create subscription for log group {log_group} due to {e}",
+                        'logGroup': log_group
+                    }
+    except Exception as e:
+        logger.exception(
+            f"There was an error in the Cloudwatch Event Handler due to {e}"
+        )
+        metadata['error'] = {
+            'errorMessage': f"There was an error in the Cloudwatch Event Handler due to {e}"
+        }
+
     yield data
 
+def _subscription_filter_name(log_group):
+    chars = [".", "-", "/"]
+    result = log_group
+    for char in chars:
+        result = result.replace(char,"_")
+    return result
 
 # Handle Sns events
 def sns_handler(event, metadata):
