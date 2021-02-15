@@ -1054,7 +1054,7 @@ def cwevent_handler(event, metadata):
                 cwlogs = boto3.client("logs")
                 try:
                     targetArn = metadata['aws']['invoked_function_arn']
-                    response = client.put_subscription_filter(
+                    response = cwlogs.put_subscription_filter(
                         logGroupName=log_group,
                         filterName='DD_LOG_SUBSCRIPTION_FILTER_{}'.format(_subscription_filter_name(log_group)),
                         filterPattern='',
