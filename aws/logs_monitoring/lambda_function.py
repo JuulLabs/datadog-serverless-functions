@@ -1044,10 +1044,12 @@ def cwevent_handler(event, metadata):
     # detail.requestParameters.logGroupName
     # detail.eventName == CreateLogGroup
     try:
-        if service == "logs":
+        if source == "aws.logs":
             log_group = data.get('detail', {}).get('requestParameters', {}).get('logGroupName', '')
             event_name = data.get('detail', {}).get('eventName', None)
-            if event_name in ["CreateLogGroup", "CreateLogStream"] and log_group.startswith('/aws/lambda'):
+            # Capture Lambda@edge
+            if event_name in ["CreateLogGroup", "CreateLogStream"] and \
+                (log_group.startswith('/aws/lambda/us-east-1.') or log_group.startswith('/test-subscription')):
                 # Create a subscription filter
                 cwlogs = boto3.client("logs")
                 try:
