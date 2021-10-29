@@ -1049,7 +1049,7 @@ def cwevent_handler(event, metadata):
             event_name = data.get('detail', {}).get('eventName', None)
             # Capture Lambda@edge
             if event_name in ["CreateLogGroup", "CreateLogStream"] and \
-                (log_group.startswith('/aws/lambda/us-east-1.') or log_group.startswith('/test-subscription')):
+                (log_group.startswith('/aws/lambda/us-east-1.') or log_group.startswith('/aws/cloudfront')):
                 # Create a subscription filter
                 cwlogs = boto3.client("logs")
                 try:
